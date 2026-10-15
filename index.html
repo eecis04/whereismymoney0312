@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#fff8fb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="우리 가계부">
+<title>우리 가계부</title>
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#fff8fb;--ink:#4a3f4d;--mut:#9a8fa0;--pink:#ffb6c8;--lav:#e3dbff;--line:#f3e6ee}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:-apple-system,'Apple SD Gothic Neo','Pretendard','Noto Sans KR',sans-serif}
+main{max-width:520px;margin:0 auto;padding:16px 16px 120px;padding-top:max(16px,env(safe-area-inset-top))}
+h2{margin:8px 0 12px;font-size:22px}h3{margin:18px 0 8px;font-size:16px}
+.card{background:#fff;border-radius:20px;padding:16px;margin:12px 0;box-shadow:0 4px 14px #f1d5e1aa}
+.row{display:flex;gap:10px;align-items:center}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}.grid2 .card{margin:0}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.chip{border:0;background:var(--lav);color:var(--ink);font:inherit;font-size:14px;padding:9px 14px;border-radius:99px}
+.chip.on{background:var(--pink);font-weight:700}
+input,select{width:100%;font:inherit;padding:12px;border:2px solid var(--line);border-radius:14px;background:#fff;color:var(--ink)}
+input:focus,select:focus{outline:0;border-color:var(--pink)}
+.btn{width:100%;border:0;background:var(--pink);color:#5a2a3a;font:inherit;font-weight:700;padding:14px;border-radius:16px;margin-top:12px}
+.btn.sub{background:var(--lav);color:var(--ink)}.btn.del{background:#ffdede;color:#c33}
+.muted{color:var(--mut);font-size:13px;margin:4px 0}
+.big{font-size:22px;font-weight:800;margin:6px 0}
+.bar{height:12px;background:#f3ecf1;border-radius:9px;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:9px;transition:width .4s}
+.item{display:flex;align-items:center;gap:12px;padding:12px 2px;border-bottom:1px solid var(--line)}
+.item:last-child{border:0}
+.ico{width:40px;height:40px;border-radius:14px;display:grid;place-items:center;font-size:20px;flex:none}
+.item .t{flex:1;min-width:0}
+.item .t b,.item .t small{display:block;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.item small{color:var(--mut)}
+.tri{display:grid;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px;text-align:center}
+.tri small{display:block;color:var(--mut)}.tri b{font-size:16px}
+.donut{width:130px;height:130px;border-radius:50%;flex:none;position:relative}
+.donut:after{content:'';position:absolute;inset:26px;background:#fff;border-radius:50%}
+.leg{flex:1;font-size:13px}.leg div{display:flex;justify-content:space-between;padding:2px 0}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:50%;margin-right:6px}
+label{display:block;font-size:13px;color:var(--mut);margin:12px 0 6px}
+.amt{font-size:30px;font-weight:800;text-align:right}
+nav{position:fixed;left:0;right:0;bottom:0;background:#fffffff2;backdrop-filter:blur(10px);display:flex;justify-content:space-around;align-items:center;padding:8px 8px calc(8px + env(safe-area-inset-bottom));border-top:1px solid var(--line)}
+nav button{border:0;background:none;font:inherit;font-size:12px;color:var(--mut);display:flex;flex-direction:column;align-items:center;gap:2px;min-width:60px}
+nav button span{font-size:22px}nav button.on{color:#e0699a;font-weight:700}
+nav .plus{background:var(--pink);color:#fff;width:54px;height:54px;min-width:54px;border-radius:50%;margin-top:-26px;font-size:30px;box-shadow:0 6px 14px #ffb6c8aa;justify-content:center}
+.toast{position:fixed;left:50%;bottom:104px;transform:translateX(-50%);background:#4a3f4d;color:#fff;padding:10px 16px;border-radius:99px;font-size:14px;z-index:9;max-width:90%}
+</style>
+</head>
+<body>
+<div id="root"><main><p class="muted">불러오는 중…</p></main></div>
+<script type="module">
+import{initializeApp}from"https://www.gstatic.com/firebasejs/13.0.0/firebase-app.js";
+import{getAuth,signInAnonymously,onAuthStateChanged}from"https://www.gstatic.com/firebasejs/13.0.0/firebase-auth.js";
+import{getFirestore,doc,getDoc,setDoc,updateDoc,addDoc,deleteDoc,collection,onSnapshot,arrayUnion}from"https://www.gstatic.com/firebasejs/13.0.0/firebase-firestore.js";
+
+const fb=initializeApp({
+  apiKey:"AIzaSyCp5ELd37nWL9XMoMk3nlza1yk0yQVhPn8",
+  authDomain:"whereismymoney0312.firebaseapp.com",
+  projectId:"whereismymoney0312",
+  storageBucket:"whereismymoney0312.firebasestorage.app",
+  messagingSenderId:"375288502210",
+  appId:"1:375288502210:web:6a2e83b60f2cc410ad685b"
+});
+const auth=getAuth(fb),db=getFirestore(fb);
+
+/* ---------- 도우미 ---------- */
+const root=document.getElementById('root'),$=s=>document.querySelector(s);
+const CATS=[['식비','🍚','#ffb3c1'],['카페','☕','#ffd6a5'],['교통','🚌','#bde0fe'],['쇼핑','🛍️','#d7c6ff'],['문화·여가','🎬','#b9f0d3'],['기타','🫧','#e5e0e8']];
+const won=n=>'₩'+Math.round(n).toLocaleString('ko-KR');
+const pad=n=>String(n).padStart(2,'0');
+const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const today=()=>ymd(new Date());
+const monthRange=o=>{const n=new Date();return[ymd(new Date(n.getFullYear(),n.getMonth()+o,1)),ymd(new Date(n.getFullYear(),n.getMonth()+o+1,0))]};
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const cmp=(a,b)=>b.date.localeCompare(a.date)||(b.ts||0)-(a.ts||0);
+const sum=l=>l.reduce((a,x)=>a+x.amount,0);
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.append(t);setTimeout(()=>t.remove(),2200)}
+
+const S={uid:null,room:null,members:[],names:{},exp:[],bud:[],tab:'home',pk:'this',cs:monthRange(0)[0],ce:today(),fw:'all',fc:'all',q:'',editId:null,draft:{cat:'식비',who:null},ready:false};
+const nm=u=>u===S.uid?'나':(S.names[u]||'상대');
+const ppl=()=>[S.uid,...S.members.filter(u=>u!==S.uid)];
+const range=()=>S.pk==='this'?monthRange(0):S.pk==='last'?monthRange(-1):[S.cs,S.ce];
+
+/* ---------- 화면 ---------- */
+const setupView=()=>`<main><h2>🐷 우리 가계부</h2>
+<div class="card"><label>내 이름(별명)</label><input id="s-name" maxlength="10" placeholder="예: 진" value="${esc(localStorage.getItem('name')||'')}">
+<button class="btn" data-act="create">새 가계부 만들기</button></div>
+<div class="card"><label>초대 코드로 입장</label><input id="s-code" placeholder="초대 코드" value="${esc(new URLSearchParams(location.search).get('room')||'')}" style="text-transform:uppercase">
+<button class="btn sub" data-act="join">입장하기</button></div></main>`;
+
+const periodBar=()=>{const[s,e]=range();return`<div class="chips">${[['this','이번 달'],['last','지난 달'],['custom','직접 설정']].map(([k,t])=>`<button class="chip ${S.pk===k?'on':''}" data-act="pk" data-v="${k}">${t}</button>`).join('')}</div>${S.pk==='custom'?`<div class="row"><input type="date" data-bind="cs" value="${S.cs}"><span>~</span><input type="date" data-bind="ce" value="${S.ce}"></div>`:`<p class="muted">${s} ~ ${e}</p>`}`};
+
+const row=x=>{const c=CATS.find(c=>c[0]===x.cat)||CATS[5];return`<div class="item" data-act="edit" data-v="${x.id}"><div class="ico" style="background:${c[2]}">${c[1]}</div><div class="t"><b>${esc(x.place||x.cat)}${x.memo?' · '+esc(x.memo):''}</b><small>${x.date.slice(5).replace('-','/')} · ${esc(nm(x.who))} · ${x.cat}</small></div><b>${won(x.amount)}</b></div>`};
+
+const activeBud=u=>{const t=today();return S.bud.filter(b=>b.who===u&&b.start<=t&&t<=b.end).sort((a,b)=>(b.ts||0)-(a.ts||0))[0]};
+function budCard(u){const b=activeBud(u),n=esc(nm(u));
+  if(!b)return`<div class="card"><b>${n}</b><p class="muted">예산을 설정해 주세요</p></div>`;
+  const sp=sum(S.exp.filter(x=>x.who===u&&x.date>=b.start&&x.date<=b.end)),r=sp/b.amount,left=b.amount-sp;
+  const col=r>1?'#ff7a7a':r>=.8?'#ffab5e':'#7fd8b5';
+  return`<div class="card"><b>${n}</b><div class="big" style="color:${r>1?'#e24':'inherit'}">${won(left)}</div><p class="muted">${left<0?'예산 초과':'남은 예산'}</p><div class="bar"><i style="width:${Math.min(r,1)*100}%;background:${col}"></i></div><p class="muted">${won(sp)} / ${won(b.amount)} (${Math.round(r*100)}%)</p></div>`}
+
+function home(){
+  const[s,e]=range(),L=S.exp.filter(x=>x.date>=s&&x.date<=e),P=ppl(),sm=u=>sum(L.filter(x=>x.who===u)),tot=sum(L);
+  const K=CATS.map(([c,,col])=>({c,col,v:sum(L.filter(x=>x.cat===c))}));
+  let acc=0;const grad=tot?K.filter(k=>k.v).map(k=>{const a=acc/tot*100;acc+=k.v;return`${k.col} ${a}% ${acc/tot*100}%`}).join(','):'#f3ecf1 0 100%';
+  let st='';
+  if(P.length===2){const a=sm(P[0]),b=sm(P[1]),d=a-b;st=`<p class="muted">🤝 ${d===0?'두 사람이 똑같이 썼어요':`더 쓴 사람: ${esc(nm(d>0?P[0]:P[1]))} (${won(Math.abs(d))} 차이) · 반반 정산: ${esc(nm(d>0?P[1]:P[0]))} ➜ ${esc(nm(d>0?P[0]:P[1]))} ${won(Math.abs(d)/2)}`}</p>`}
+  return`<h2>🐷 우리 가계부</h2>${periodBar()}
+  <div class="card"><div class="tri">${P.map(u=>`<div><small>${esc(nm(u))}</small><b>${won(sm(u))}</b></div>`).join('')}<div><small>합계</small><b>${won(tot)}</b></div></div>${st}</div>
+  <h3>💰 예산 현황</h3><div class="grid2">${P.map(budCard).join('')}</div>
+  <div class="card row"><div class="donut" style="background:conic-gradient(${grad})"></div><div class="leg">${K.map(k=>`<div><span><i style="background:${k.col}"></i>${k.c}</span><b>${tot?Math.round(k.v/tot*100):0}%</b></div>`).join('')}</div></div>
+  <div class="card"><b>최근 지출</b>${[...S.exp].sort(cmp).slice(0,6).map(row).join('')||'<p class="muted">첫 지출을 입력해 보세요 ✏️</p>'}</div>`}
+
+function addView(){
+  const x=S.editId&&S.exp.find(e=>e.id===S.editId),v=x||{date:today(),amount:'',place:'',memo:''};
+  return`<h2>${x?'지출 수정':'지출 입력'}</h2><div class="card">
+  <label>금액 (원)</label><input id="f-amount" class="amt" inputmode="numeric" placeholder="0" value="${v.amount}">
+  <label>날짜</label><input id="f-date" type="date" value="${v.date}">
+  <label>어디서</label><input id="f-place" placeholder="예: 스타벅스" value="${esc(v.place)}">
+  <label>무엇에</label><input id="f-memo" placeholder="예: 아메리카노 2잔" value="${esc(v.memo)}">
+  <label>카테고리</label><div class="chips">${CATS.map(c=>`<button class="chip cc ${S.draft.cat===c[0]?'on':''}" data-act="pickcat" data-v="${c[0]}">${c[1]} ${c[0]}</button>`).join('')}</div>
+  <label>쓴 사람</label><div class="chips">${ppl().map(u=>`<button class="chip cw ${S.draft.who===u?'on':''}" data-act="pickwho" data-v="${u}">${esc(nm(u))}</button>`).join('')}</div>
+  <button class="btn" data-act="save">저장하기</button>${x?'<button class="btn del" data-act="del">삭제하기</button>':''}</div>`}
+
+const filtered=()=>{const[s,e]=range(),q=S.q.trim().toLowerCase();return S.exp.filter(x=>x.date>=s&&x.date<=e&&(S.fw==='all'||x.who===S.fw)&&(S.fc==='all'||x.cat===S.fc)&&(!q||((x.place||'')+(x.memo||'')).toLowerCase().includes(q))).sort(cmp)};
+const listBody=()=>{const L=filtered();return`<p class="muted">${L.length}건 · 합계 <b>${won(sum(L))}</b></p>${L.map(row).join('')||'<p class="muted">조건에 맞는 내역이 없어요</p>'}`};
+const list=()=>`<h2>전체 내역</h2>${periodBar()}
+<div class="card"><div class="grid2"><select data-bind="fw"><option value="all">전체 사람</option>${ppl().map(u=>`<option value="${u}" ${S.fw===u?'selected':''}>${esc(nm(u))}</option>`).join('')}</select>
+<select data-bind="fc"><option value="all">전체 카테고리</option>${CATS.map(c=>`<option ${S.fc===c[0]?'selected':''}>${c[0]}</option>`).join('')}</select></div>
+<input id="q" placeholder="🔍 사용처·내용 검색" value="${esc(S.q)}" style="margin-top:10px"></div>
+<div class="card" id="items">${listBody()}</div><button class="btn sub" data-act="csv">CSV 내보내기</button>`;
+
+function budget(){
+  const[s,e]=monthRange(0),B=[...S.bud].sort((a,b)=>b.start.localeCompare(a.start));
+  return`<h2>예산 설정</h2><div class="card"><b>내 예산 추가</b>
+  <label>시작일</label><input type="date" id="b-s" value="${s}"><label>종료일</label><input type="date" id="b-e" value="${e}">
+  <label>예산 금액 (원)</label><input id="b-a" inputmode="numeric" placeholder="예: 500000"><button class="btn" data-act="addbud">예산 저장</button></div>
+  <div class="card"><b>예산 목록</b>${B.map(b=>`<div class="item"><div class="t"><b>${esc(nm(b.who))} · ${won(b.amount)}</b><small>${b.start} ~ ${b.end}</small></div>${b.who===S.uid?`<button class="chip" data-act="delbud" data-v="${b.id}">삭제</button>`:''}</div>`).join('')||'<p class="muted">아직 예산이 없어요</p>'}</div>
+  <div class="card"><b>💌 초대 코드</b><div class="big">${S.room}</div><p class="muted">링크를 보내면 상대방이 바로 입장해요 (두 명만 가능)</p><button class="btn sub" data-act="copy">초대 링크 공유</button></div>
+  <button class="btn del" data-act="leave">다른 가계부로 이동</button>`}
+
+function render(){
+  if(!S.ready){return}
+  if(!S.room){root.innerHTML=setupView();return}
+  const v={home,list,add:addView,budget}[S.tab]();
+  const N=(t,i,l)=>`<button class="${S.tab===t?'on':''}" data-act="tab" data-v="${t}"><span>${i}</span>${l}</button>`;
+  root.innerHTML=`<main>${v}</main><nav>${N('home','🏠','홈')}${N('list','🧾','내역')}<button class="plus" data-act="tab" data-v="add">＋</button>${N('budget','🐷','예산')}</nav>`;
+}
+const refresh=()=>{if(/INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName))return;render()};
+
+/* ---------- 실시간 연결 ---------- */
+let un=[];
+function subscribe(){
+  un.forEach(f=>f());
+  const bad=()=>{toast('접근 권한이 없어요. 다시 입장해 주세요');leave()};
+  un=[
+    onSnapshot(doc(db,'rooms',S.room),s=>{const d=s.data();if(!d)return;S.members=d.members;S.names=d.names||{};refresh()},bad),
+    onSnapshot(collection(db,'rooms',S.room,'expenses'),s=>{S.exp=s.docs.map(d=>({id:d.id,...d.data()}));refresh()},bad),
+    onSnapshot(collection(db,'rooms',S.room,'budgets'),s=>{S.bud=s.docs.map(d=>({id:d.id,...d.data()}));refresh()},bad)
+  ];
+}
+function leave(){un.forEach(f=>f());un=[];localStorage.removeItem('room');Object.assign(S,{room:null,exp:[],bud:[],members:[]});render()}
+async function enter(code,name){
+  const ref=doc(db,'rooms',code),snap=await getDoc(ref);
+  if(!snap.exists())throw new Error('코드를 찾을 수 없어요');
+  const d=snap.data();
+  if(!d.members.includes(S.uid)){
+    if(d.members.length>=2)throw new Error('이미 두 명이 쓰고 있는 가계부예요');
+    await updateDoc(ref,{members:arrayUnion(S.uid),['names.'+S.uid]:name});
+  }
+  localStorage.setItem('room',code);localStorage.setItem('name',name);
+  S.room=code;S.tab='home';S.draft.who=S.uid;subscribe();
+}
+
+/* ---------- 동작 ---------- */
+const ACT={
+  tab:v=>{S.tab=v;S.editId=null;if(v==='add')S.draft={cat:'식비',who:S.uid};render();scrollTo(0,0)},
+  pk:v=>{S.pk=v;render()},
+  edit:v=>{const x=S.exp.find(e=>e.id===v);if(!x)return;S.editId=v;S.draft={cat:x.cat,who:x.who};S.tab='add';render();scrollTo(0,0)},
+  pickcat:v=>{S.draft.cat=v;document.querySelectorAll('.cc').forEach(c=>c.classList.toggle('on',c.dataset.v===v))},
+  pickwho:v=>{S.draft.who=v;document.querySelectorAll('.cw').forEach(c=>c.classList.toggle('on',c.dataset.v===v))},
+  async save(){
+    const amount=parseInt(($('#f-amount').value||'').replace(/\D/g,''))||0;
+    if(!amount)throw new Error('금액을 입력해 주세요');
+    const data={amount,date:$('#f-date').value||today(),place:$('#f-place').value.trim(),memo:$('#f-memo').value.trim(),cat:S.draft.cat,who:S.draft.who||S.uid};
+    const col=collection(db,'rooms',S.room,'expenses');
+    if(S.editId)await setDoc(doc(col,S.editId),data,{merge:true});else await addDoc(col,{...data,ts:Date.now()});
+    S.editId=null;S.tab='home';render();toast('저장했어요 🐷');
+  },
+  async del(){
+    if(!confirm('이 지출을 삭제할까요?'))return;
+    await deleteDoc(doc(db,'rooms',S.room,'expenses',S.editId));
+    S.editId=null;S.tab='list';render();toast('삭제했어요');
+  },
+  async addbud(){
+    const start=$('#b-s').value,end=$('#b-e').value,amount=parseInt(($('#b-a').value||'').replace(/\D/g,''))||0;
+    if(!start||!end||end<start)throw new Error('기간을 확인해 주세요');
+    if(!amount)throw new Error('예산 금액을 입력해 주세요');
+    await addDoc(collection(db,'rooms',S.room,'budgets'),{who:S.uid,start,end,amount,ts:Date.now()});
+    $('#b-a').value='';toast('예산을 저장했어요');setTimeout(render,300);
+  },
+  async delbud(v){if(confirm('이 예산을 삭제할까요?'))await deleteDoc(doc(db,'rooms',S.room,'budgets',v))},
+  async copy(){
+    const url=location.origin+location.pathname+'?room='+S.room;
+    if(navigator.share)try{await navigator.share({title:'우리 가계부',text:'가계부에 초대할게요!',url});return}catch{}
+    await navigator.clipboard.writeText(url);toast('링크를 복사했어요');
+  },
+  csv(){
+    const rows=[['날짜','금액','사용처','내용','카테고리','쓴 사람'],...filtered().map(x=>[x.date,x.amount,x.place,x.memo,x.cat,S.names[x.who]||nm(x.who)])];
+    const t='\ufeff'+rows.map(r=>r.map(c=>`"${String(c??'').replace(/"/g,'""')}"`).join(',')).join('\n');
+    const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/csv'}));a.download=`가계부_${today()}.csv`;a.click();
+  },
+  async create(){
+    const name=$('#s-name').value.trim();if(!name)throw new Error('이름을 입력해 주세요');
+    const al='ABCDEFGHJKLMNPQRSTUVWXYZ23456789',r=crypto.getRandomValues(new Uint8Array(10));
+    const code=[...r].map(n=>al[n%al.length]).join('');
+    await setDoc(doc(db,'rooms',code),{members:[S.uid],names:{[S.uid]:name},created:Date.now()});
+    await enter(code,name);render();toast('만들었어요! 예산 탭에서 초대 링크를 보내 보세요');
+  },
+  async join(){
+    const name=$('#s-name').value.trim(),code=$('#s-code').value.trim().toUpperCase();
+    if(!name)throw new Error('이름을 입력해 주세요');if(!code)throw new Error('초대 코드를 입력해 주세요');
+    await enter(code,name);render();
+  },
+  leave(){if(confirm('이 기기에서 가계부를 나갈까요? (데이터는 지워지지 않아요)'))leave()}
+};
+root.addEventListener('click',async e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  try{await ACT[b.dataset.act]?.(b.dataset.v)}catch(err){toast(err.message||'문제가 생겼어요')}
+});
+root.addEventListener('change',e=>{const k=e.target.dataset.bind;if(k){S[k]=e.target.value;render()}});
+root.addEventListener('input',e=>{if(e.target.id==='q'){S.q=e.target.value;$('#items').innerHTML=listBody()}});
+
+onAuthStateChanged(auth,async u=>{
+  if(!u){await signInAnonymously(auth);return}
+  S.uid=u.uid;S.ready=true;
+  const r=localStorage.getItem('room');
+  if(r&&!S.room){try{await enter(r,localStorage.getItem('name')||'')}catch{localStorage.removeItem('room')}}
+  render();
+});
+if('serviceWorker'in navigator)navigator.serviceWorker.register('sw.js');
+</script>
+</body>
+</html>
